@@ -202,7 +202,8 @@ func (c *Client) RunThread(ctx context.Context, threadID int, wg *sync.WaitGroup
 				"thread_id": threadID,
 			})
 			return
-		case <-time.After(100 * time.Millisecond):
+		//case <-time.After(100 * time.Millisecond):
+		default:
 			_, _, err := c.SendMessage(ctx, httpClient, threadID, i)
 			if err != nil {
 				c.Logger.Error("Error in thread", Fields{
