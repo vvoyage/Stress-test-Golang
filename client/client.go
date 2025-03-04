@@ -17,7 +17,7 @@ import (
 
 type Config struct {
 	Host          string
-	Port          int
+	Port          string
 	Threads       int
 	MessagesCount int
 	LogFile       string
@@ -132,7 +132,7 @@ func (c *Client) SendMessage(ctx context.Context, httpClient *http.Client, threa
 		return 0, 0, fmt.Errorf("error marshaling message: %w", err)
 	}
 
-	url := fmt.Sprintf("http://%s:%d/send/", c.Config.Host, c.Config.Port)
+	url := fmt.Sprintf("http://%s:%s/send/", c.Config.Host, c.Config.Port)
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(payload))
 	if err != nil {
 		return 0, 0, fmt.Errorf("error creating request: %w", err)
@@ -265,8 +265,8 @@ func (c *Client) Run() {
 }
 
 func main() {
-	host := flag.String("host", "192.168.0.25", "Service host")
-	port := flag.Int("port", 8080, "Service port")
+	host := flag.String("host", os.Getenv("SERVICE_HOST"), "Service host")
+	port := flag.String("port", os.Getenv("SERVICE_PORT"), "Service port")
 	threads := flag.Int("threads", 12, "Number of threads")
 	messages := flag.Int("messages", 30, "Number of messages per thread")
 	logFile := flag.String("log", "client.log", "Path to log file")
@@ -276,6 +276,13 @@ func main() {
 	esbVerNo := flag.String("esb-ver-no", "1.0", "ESB version number")
 	esbKey := flag.String("esb-key", "default-key", "ESB key")
 	flag.Parse()
+
+	if *host == "" {
+		*host = "localhost"
+	}
+	if *port == "" {
+		*port = "8080"
+	}
 
 	headers := http.Header{}
 	headers.Set("x-esb-src", *esbSrc)
