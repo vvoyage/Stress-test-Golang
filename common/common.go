@@ -8,13 +8,13 @@ import (
 	"time"
 )
 
-var Level = []string{
+var Level = [...]string{
 	"Info",
 	"Warn",
 	"Error",
 }
 
-var RequiredHeaders = []string{
+var RequiredHeaders = [...]string{
 	"x-esb-src",
 	"x-esb-data-type",
 	"x-esb-ver-id",
@@ -67,12 +67,12 @@ func (l *Logger) log(level LogLevel, message string, fields Fields) {
 		Level     LogLevel  `json:"level"`
 		Timestamp time.Time `json:"timestamp"`
 		Message   string    `json:"message"`
-		Extra     Fields    `json:"extra,omitempty"`
+		Log       Fields    `json:"log,omitempty"`
 	}{
 		Level:     level,
 		Timestamp: time.Now(),
 		Message:   message,
-		Extra:     fields,
+		Log:       fields,
 	}
 
 	jsonEntry, err := json.Marshal(entry)

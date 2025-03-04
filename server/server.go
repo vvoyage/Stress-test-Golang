@@ -45,7 +45,7 @@ func (s *Server) HandleSend(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	_, err := io.Copy(io.Discard, r.Body)
+	_, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 
@@ -58,9 +58,9 @@ func (s *Server) HandleSend(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	s.Logger.Info("Request processed successfully", Fields{
-		"status":       http.StatusOK,
-		"headers":      &r.Header,
-		"message_size": r.ContentLength,
+		"status":          http.StatusOK,
+		"missing_headers": &r.Header,
+		"message_size":    r.ContentLength,
 	})
 
 	w.WriteHeader(http.StatusOK)
