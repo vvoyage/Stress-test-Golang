@@ -5,8 +5,13 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"runtime"
 	"time"
 )
+
+type Fields map[string]interface{}
+type LogLevel int
 
 var Level = [...]string{
 	"Info",
@@ -22,21 +27,16 @@ var RequiredHeaders = [...]string{
 	"x-esb-key",
 }
 
-type Fields map[string]interface{}
-type LogLevel int
-
 const (
 	Info LogLevel = iota
 	Warn
 	Error
 )
 
-func (l LogLevel) String() string {
-	return Level[l]
-}
-
-func (l LogLevel) MarshalJSON() ([]byte, error) {
-	return json.Marshal(l.String())
+type CallerInfo struct {
+	File     string `json:"file"`
+	Line     int    `json:"line"`
+	Function string `json:"function"`
 }
 
 type Message struct {
@@ -48,6 +48,14 @@ type Message struct {
 type Logger struct {
 	logger *log.Logger
 	file   *os.File
+}
+
+func (l LogLevel) String() string {
+	return Level[l]
+}
+
+func (l LogLevel) MarshalJSON() ([]byte, error) {
+	return json.Marshal(l.String())
 }
 
 func NewLogger(logFilePath string) (*Logger, error) {
@@ -62,16 +70,37 @@ func NewLogger(logFilePath string) (*Logger, error) {
 	}, nil
 }
 
+func getCaller(skip int) *CallerInfo {
+	pc, file, line, ok := runtime.Caller(skip)
+	if !ok {
+		return &CallerInfo{"unknown", -1, "unknown"}
+	}
+
+	fn := runtime.FuncForPC(pc)
+	funcName := "unknown"
+	if fn != nil {
+		funcName = fn.Name()
+	}
+
+	fileName := filepath.Base(file)
+
+	return &CallerInfo{fileName, line, funcName}
+}
+
 func (l *Logger) log(level LogLevel, message string, fields Fields) {
+	caller := getCaller(3)
+
 	entry := struct {
-		Level     LogLevel  `json:"level"`
-		Timestamp time.Time `json:"timestamp"`
-		Message   string    `json:"message"`
-		Log       Fields    `json:"log,omitempty"`
+		Level     LogLevel    `json:"level"`
+		Timestamp time.Time   `json:"timestamp"`
+		Message   string      `json:"message"`
+		Caller    *CallerInfo `json:"caller"`
+		Log       Fields      `json:"log,omitempty"`
 	}{
 		Level:     level,
 		Timestamp: time.Now(),
 		Message:   message,
+		Caller:    caller,
 		Log:       fields,
 	}
 
