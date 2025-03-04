@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
@@ -106,6 +107,23 @@ func NewClient(config *Config, headers *http.Header) (*Client, error) {
 	}, nil
 }
 
+// Функция для выбора случайного поднабора заголовков
+func getRandomHeaders(baseHeaders *http.Header) http.Header {
+	headers := http.Header{}
+
+	rand.Seed(time.Now().UnixNano())
+	numHeaders := rand.Intn(len(RequiredHeaders)) + 1 // Случайное число заголовков (от 1 до 5)
+
+	selectedIndexes := rand.Perm(len(RequiredHeaders))[:numHeaders] // Перемешиваем и выбираем N заголовков
+
+	for _, idx := range selectedIndexes {
+		key := RequiredHeaders[idx]
+		headers.Set(key, baseHeaders.Get(key))
+	}
+
+	return headers
+}
+
 func (c *Client) SendMessage(ctx context.Context, httpClient *http.Client, threadID int, messageNumber int) (time.Duration, int, error) {
 	messageID := strconv.Itoa(threadID) + "-" + strconv.Itoa(messageNumber)
 	message := &Message{
@@ -129,9 +147,16 @@ func (c *Client) SendMessage(ctx context.Context, httpClient *http.Client, threa
 		req.Header.Set(name, c.Headers.Get(name))
 	}
 
+	// Выбираем случайные заголовки
+	randomHeaders := getRandomHeaders(c.Headers)
+
+	// Добавляем их в запрос (ЗАМЕНЯЕМ фиксированные заголовки)
+	req.Header = randomHeaders
+
 	c.Logger.Info("Sending message", Fields{
-		"thread_id":  threadID,
-		"message_id": messageID,
+		"thread_id":       threadID,
+		"message_id":      messageID,
+		"selectedHeaders": randomHeaders,
 	})
 
 	startTime := time.Now()
@@ -247,10 +272,10 @@ func (c *Client) Run() {
 }
 
 func main() {
-	host := flag.String("host", "192.168.0.25", "Service host")
+	host := flag.String("host", "localhost", "Service host")
 	port := flag.Int("port", 8080, "Service port")
-	threads := flag.Int("threads", 8000, "Number of threads")
-	messages := flag.Int("messages", 1000, "Number of messages per thread")
+	threads := flag.Int("threads", 30, "Number of threads")
+	messages := flag.Int("messages", 30, "Number of messages per thread")
 	logFile := flag.String("log", "client.log", "Path to log file")
 	esbSrc := flag.String("esb-src", "client-app", "ESB source")
 	esbDataType := flag.String("esb-data-type", "json", "ESB data type")
