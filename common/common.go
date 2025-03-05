@@ -34,9 +34,8 @@ const (
 )
 
 type CallerInfo struct {
-	File     string `json:"file"`
-	Line     int    `json:"line"`
-	Function string `json:"function"`
+	File string `json:"file"`
+	Line int    `json:"line"`
 }
 
 type Message struct {
@@ -70,38 +69,32 @@ func NewLogger(logFilePath string) (*Logger, error) {
 	}, nil
 }
 
-func getCaller(skip int) *CallerInfo {
-	pc, file, line, ok := runtime.Caller(skip)
+func getCaller(skip int) CallerInfo {
+	_, file, line, ok := runtime.Caller(skip)
 	if !ok {
-		return &CallerInfo{"unknown", -1, "unknown"}
-	}
-
-	fn := runtime.FuncForPC(pc)
-	funcName := "unknown"
-	if fn != nil {
-		funcName = fn.Name()
+		return CallerInfo{"unknown", -1}
 	}
 
 	fileName := filepath.Base(file)
 
-	return &CallerInfo{fileName, line, funcName}
+	return CallerInfo{fileName, line}
 }
 
 func (l *Logger) log(level LogLevel, message string, fields Fields) {
 	caller := getCaller(3)
 
-	entry := struct {
-		Level     LogLevel    `json:"level"`
-		Timestamp time.Time   `json:"timestamp"`
-		Message   string      `json:"message"`
-		Caller    *CallerInfo `json:"caller"`
-		Log       Fields      `json:"log,omitempty"`
+	entry := &struct {
+		Level      LogLevel   `json:"level"`
+		Timestamp  time.Time  `json:"timestamp"`
+		Message    string     `json:"message"`
+		CallerInfo CallerInfo `json:"caller"`
+		Fields     `json:"log,omitempty"`
 	}{
-		Level:     level,
-		Timestamp: time.Now(),
-		Message:   message,
-		Caller:    caller,
-		Log:       fields,
+		Level:      level,
+		Timestamp:  time.Now(),
+		Message:    message,
+		CallerInfo: caller,
+		Fields:     fields,
 	}
 
 	jsonEntry, err := json.Marshal(entry)
