@@ -62,6 +62,14 @@ func (l LogLevel) MarshalJSON() ([]byte, error) {
 	return json.Marshal(l.String())
 }
 
+func (l LogLevel) String() string {
+	return Level[l]
+}
+
+func (l LogLevel) MarshalJSON() ([]byte, error) {
+	return json.Marshal(l.String())
+}
+
 func NewLogger(logFilePath string) (*Logger, error) {
 	file, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -101,6 +109,17 @@ func (l *Logger) Flush() error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	return l.buffer.Flush()
+}
+
+func getCaller(skip int) CallerInfo {
+	_, file, line, ok := runtime.Caller(skip)
+	if !ok {
+		return CallerInfo{"unknown", -1}
+	}
+
+	fileName := filepath.Base(file)
+
+	return CallerInfo{fileName, line}
 }
 
 func getCaller(skip int) CallerInfo {
