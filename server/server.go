@@ -6,8 +6,10 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/signal"
 	. "stress/common"
 	"sync"
+	"syscall"
 )
 
 type Server struct {
@@ -86,6 +88,21 @@ func (s *Server) Shutdown() {
 	if err := s.Logger.Close(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error closing log file: %v\n", err)
 	}
+
+	os.Exit(0)
+}
+
+func setupSignalHandler(server *Server) {
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		sig := <-signalChan
+		server.Logger.Info("Received shutdown signal", Fields{
+			"signal": sig.String(),
+		})
+		server.Shutdown()
+	}()
 }
 
 func main() {
@@ -98,6 +115,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Error creating server: %v\n", err)
 		os.Exit(1)
 	}
+
+	setupSignalHandler(server)
 
 	err = server.Run()
 	if err != nil {
