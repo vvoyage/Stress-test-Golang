@@ -21,6 +21,8 @@ type Config struct {
 	Threads       int
 	MessagesCount int
 	LogFile       string
+	MinPayload    int
+	MaxPayload    int
 }
 
 type Client struct {
@@ -119,11 +121,21 @@ func getRandomHeaders(baseHeaders *http.Header) http.Header {
 	return headers
 }
 
+func randomPayload(size int) string { // Генерация случайной нагрузки
+	letters := []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+	payload := make([]byte, size)
+	for i := range payload {
+		payload[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(payload)
+}
+
 func (c *Client) SendMessage(ctx context.Context, httpClient *http.Client, threadID int, messageNumber int) (time.Duration, int, error) {
 	messageID := strconv.Itoa(threadID) + "-" + strconv.Itoa(messageNumber)
+	size := rand.Intn(c.Config.MaxPayload-c.Config.MinPayload+1) + c.Config.MinPayload // Генерация случайного размера нагрузки
 	message := &Message{
 		ID:        messageID,
-		Payload:   messageID,
+		Payload:   randomPayload(size),
 		Timestamp: time.Now(),
 	}
 
@@ -147,8 +159,10 @@ func (c *Client) SendMessage(ctx context.Context, httpClient *http.Client, threa
 	req.Header = randomHeaders
 
 	c.Logger.Info("Sending message", Fields{
-		"thread_id":       threadID,
-		"message_id":      messageID,
+		"thread_id":    threadID,
+		"message_id":   messageID,
+		"payload_size": size,
+		// "payload":         message.Payload, Само сообщение в символах
 		"selectedHeaders": randomHeaders,
 	})
 
@@ -269,6 +283,8 @@ func main() {
 	port := flag.String("port", os.Getenv("SERVICE_PORT"), "Service port")
 	threads := flag.Int("threads", 12, "Number of threads")
 	messages := flag.Int("messages", 30, "Number of messages per thread")
+	minPayload := flag.Int("min-payload", 10, "Minimum payload size in bytes")
+	maxPayload := flag.Int("max-payload", 1024, "Maximum payload size in bytes")
 	logFile := flag.String("log", "client.log", "Path to log file")
 	esbSrc := flag.String("esb-src", "client-app", "ESB source")
 	esbDataType := flag.String("esb-data-type", "json", "ESB data type")
@@ -297,6 +313,8 @@ func main() {
 		Threads:       *threads,
 		MessagesCount: *messages,
 		LogFile:       *logFile,
+		MinPayload:    *minPayload,
+		MaxPayload:    *maxPayload,
 	}
 
 	client, err := NewClient(config, &headers)
