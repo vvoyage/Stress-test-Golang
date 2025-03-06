@@ -13,6 +13,8 @@ import (
 	. "stress/common"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Config struct {
@@ -107,15 +109,34 @@ func NewClient(config *Config, headers *http.Header) (*Client, error) {
 	}, nil
 }
 
-func getRandomHeaders(baseHeaders *http.Header) http.Header {
+var dataTypes = [5]string{"json", "xml", "html", "form-data", "binary"}
+
+var esbKeys = [3]string{"NiuqR6nZ8ZlSpz3d5rIyj1NqeTM", "kJ8gFC0sBKuasutvyg2yLVUhyz7", "o5usHtlb5KoK7KUjqSscynmcHWE"}
+
+func getRandomHeaders(baseHeaders *http.Header, threadID int) http.Header {
 	headers := http.Header{}
-	numHeaders := rand.Intn(len(RequiredHeaders)) + 1
+	numHeaders := rand.Intn(len(RequiredHeaders) + 1)
 
 	selectedIndexes := rand.Perm(len(RequiredHeaders))[:numHeaders]
 
 	for _, idx := range selectedIndexes {
 		key := RequiredHeaders[idx]
-		headers.Set(key, baseHeaders.Get(key))
+		value := ""
+		if key == "x-esb-src" {
+			value = fmt.Sprint(threadID)
+		} else if key == "x-esb-data-type" {
+			value = dataTypes[rand.Intn(len(dataTypes))]
+		} else if key == "x-esb-ver-id" {
+			value = uuid.New().String()
+		} else if key == "x-esb-key" {
+			value = esbKeys[rand.Intn(len(esbKeys))]
+		} else if key == "x-esb-ver-no" {
+			t := time.Now()
+			value = t.Format("20060102T150405")
+		} else {
+			value = baseHeaders.Get(key)
+		}
+		headers.Set(key, value)
 	}
 
 	return headers
@@ -157,7 +178,7 @@ func (c *Client) SendMessage(ctx context.Context, httpClient *http.Client, threa
 		req.Header.Set(name, c.Headers.Get(name))
 	}
 
-	randomHeaders := getRandomHeaders(c.Headers)
+	randomHeaders := getRandomHeaders(c.Headers, threadID)
 
 	req.Header = randomHeaders
 
