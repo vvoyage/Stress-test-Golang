@@ -109,10 +109,6 @@ func NewClient(config *Config, headers *http.Header) (*Client, error) {
 	}, nil
 }
 
-var dataTypes = [5]string{"json", "xml", "html", "form-data", "binary"}
-
-var esbKeys = [3]string{"NiuqR6nZ8ZlSpz3d5rIyj1NqeTM", "kJ8gFC0sBKuasutvyg2yLVUhyz7", "o5usHtlb5KoK7KUjqSscynmcHWE"}
-
 func getRandomHeaders(baseHeaders *http.Header, threadID int) http.Header {
 	headers := http.Header{}
 	numHeaders := rand.Intn(len(RequiredHeaders) + 1)
@@ -125,11 +121,11 @@ func getRandomHeaders(baseHeaders *http.Header, threadID int) http.Header {
 		if key == "x-esb-src" {
 			value = fmt.Sprint(threadID)
 		} else if key == "x-esb-data-type" {
-			value = dataTypes[rand.Intn(len(dataTypes))]
+			value = DataTypes[rand.Intn(len(DataTypes))]
 		} else if key == "x-esb-ver-id" {
 			value = uuid.New().String()
 		} else if key == "x-esb-key" {
-			value = esbKeys[rand.Intn(len(esbKeys))]
+			value = EsbKeys[rand.Intn(len(EsbKeys))]
 		} else if key == "x-esb-ver-no" {
 			t := time.Now()
 			value = t.Format("20060102T150405")

@@ -7,9 +7,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	. "stress/common"
 	"sync"
 	"syscall"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 type Server struct {
@@ -32,6 +36,23 @@ func NewServer(port int, logFile string) (*Server, error) {
 	}, nil
 }
 
+func IsValidHeader(headerName string, header string) bool {
+	things := []string{"foo", "bar", "baz"}
+	slices.Contains(things, "foo") // true
+	switch headerName {
+	case "x-esb-key":
+		return slices.Contains(EsbKeys[:], header)
+	case "x-esb-ver-id":
+		err := uuid.Validate(header)
+		return err == nil
+	case "x-esb-ver-no":
+		_, err := time.Parse("20060102T150405", header)
+		return err == nil
+	default:
+		return true
+	}
+}
+
 func (s *Server) HandleSend(w http.ResponseWriter, r *http.Request) {
 	s.RequestWG.Add(1)
 	defer s.RequestWG.Done()
@@ -40,6 +61,13 @@ func (s *Server) HandleSend(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get(name) == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			s.Logger.Error("Missing required header", Fields{
+				"header": name,
+				"status": http.StatusBadRequest,
+			})
+			return
+		} else if !IsValidHeader(name, r.Header.Get(name)) {
+			w.WriteHeader(http.StatusBadRequest)
+			s.Logger.Error("Not valid header", Fields{
 				"header": name,
 				"status": http.StatusBadRequest,
 			})
