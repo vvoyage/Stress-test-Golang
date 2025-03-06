@@ -121,8 +121,11 @@ func getRandomHeaders(baseHeaders *http.Header) http.Header {
 	return headers
 }
 
+var letters = [62]byte{'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+	'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+	'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'}
+
 func randomPayload(size int) string { // Генерация случайной нагрузки
-	letters := []byte("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 	payload := make([]byte, size)
 	for i := range payload {
 		payload[i] = letters[rand.Intn(len(letters))]
@@ -159,10 +162,9 @@ func (c *Client) SendMessage(ctx context.Context, httpClient *http.Client, threa
 	req.Header = randomHeaders
 
 	c.Logger.Info("Sending message", Fields{
-		"thread_id":    threadID,
-		"message_id":   messageID,
-		"payload_size": size,
-		// "payload":         message.Payload, Само сообщение в символах
+		"thread_id":       threadID,
+		"message_id":      messageID,
+		"payload_size":    size,
 		"selectedHeaders": randomHeaders,
 	})
 
