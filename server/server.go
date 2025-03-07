@@ -38,8 +38,6 @@ func NewServer(port int, logFile string) (*Server, error) {
 
 func isValidHeader(header string, value []string) bool {
 	switch header {
-	case "x-esb-key":
-		return len(value) == 1 && slices.Contains(EsbKeys[:], value[0])
 	case "x-esb-ver-id":
 		err := uuid.Validate(value[0])
 		return len(value) == 1 && err == nil
@@ -49,6 +47,10 @@ func isValidHeader(header string, value []string) bool {
 	default:
 		return true
 	}
+}
+
+func isAuthenticated(value string) bool {
+	return slices.Contains(EsbKeys[:], value)
 }
 
 func (s *Server) HandleSend(w http.ResponseWriter, r *http.Request) {
@@ -67,12 +69,21 @@ func (s *Server) HandleSend(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	esbKey := r.Header.Get("x-esb-key")
+	if !isAuthenticated(esbKey) {
+		w.WriteHeader(http.StatusForbidden)
+		s.Logger.Error("Not authenticated", Fields{
+			"status": http.StatusForbidden,
+		})
+		return
+	}
+
 	for header, value := range r.Header {
 		if !isValidHeader(header, value) {
-			w.WriteHeader(http.StatusForbidden)
+			w.WriteHeader(http.StatusBadRequest)
 			s.Logger.Error("Not valid header", Fields{
 				"header": header,
-				"status": http.StatusForbidden,
+				"status": http.StatusBadRequest,
 			})
 			return
 		}
