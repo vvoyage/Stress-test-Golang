@@ -37,8 +37,6 @@ func NewServer(port int, logFile string) (*Server, error) {
 }
 
 func IsValidHeader(headerName string, header string) bool {
-	things := []string{"foo", "bar", "baz"}
-	slices.Contains(things, "foo") // true
 	switch headerName {
 	case "x-esb-key":
 		return slices.Contains(EsbKeys[:], header)
@@ -58,18 +56,19 @@ func (s *Server) HandleSend(w http.ResponseWriter, r *http.Request) {
 	defer s.RequestWG.Done()
 
 	for _, name := range RequiredHeaders {
-		if r.Header.Get(name) == "" {
+		header := r.Header.Get(name)
+		if header == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			s.Logger.Error("Missing required header", Fields{
 				"header": name,
 				"status": http.StatusBadRequest,
 			})
 			return
-		} else if !IsValidHeader(name, r.Header.Get(name)) {
+		} else if !IsValidHeader(name, header) {
 			w.WriteHeader(http.StatusBadRequest)
 			s.Logger.Error("Not valid header", Fields{
 				"header": name,
-				"status": http.StatusBadRequest,
+				"status": http.StatusForbidden,
 			})
 			return
 		}
