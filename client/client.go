@@ -13,6 +13,8 @@ import (
 	. "stress/common"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Config struct {
@@ -107,15 +109,27 @@ func NewClient(config *Config, headers *http.Header) (*Client, error) {
 	}, nil
 }
 
-func getRandomHeaders(baseHeaders *http.Header) http.Header {
+func getRandomHeaders(baseHeaders *http.Header, threadID int) http.Header {
 	headers := http.Header{}
-	numHeaders := rand.Intn(len(RequiredHeaders)) + 1
 
-	selectedIndexes := rand.Perm(len(RequiredHeaders))[:numHeaders]
-
-	for _, idx := range selectedIndexes {
-		key := RequiredHeaders[idx]
-		headers.Set(key, baseHeaders.Get(key))
+	for _, header := range RequiredHeaders {
+		value := ""
+		switch header {
+		case "x-esb-src":
+			value = fmt.Sprint(threadID)
+		case "x-esb-data-type":
+			value = DataTypes[rand.Intn(len(DataTypes))]
+		case "x-esb-ver-id":
+			value = uuid.New().String()
+		case "x-esb-key":
+			value = EsbKeys[rand.Intn(len(EsbKeys))]
+		case "x-esb-ver-no":
+			t := time.Now()
+			value = t.Format("20060102T150405")
+		default:
+			value = baseHeaders.Get(header)
+		}
+		headers.Set(header, value)
 	}
 
 	return headers
@@ -133,7 +147,7 @@ func randomPayload(size int) string { // Генерация случайной �
 	return string(payload)
 }
 
-func (c *Client) SendMessage(ctx context.Context, httpClient *http.Client, threadID int, messageNumber int) (time.Duration, int, error) {
+func (c *Client) SendMessage(ctx context.Context, httpClient *http.Client, threadID int, messageNumber int, randomHeaders http.Header) (time.Duration, int, error) {
 	messageID := strconv.Itoa(threadID) + "-" + strconv.Itoa(messageNumber)
 	size := rand.Intn(c.Config.MaxPayload-c.Config.MinPayload+1) + c.Config.MinPayload // Генерация случайного размера нагрузки
 	message := &Message{
@@ -152,12 +166,6 @@ func (c *Client) SendMessage(ctx context.Context, httpClient *http.Client, threa
 	if err != nil {
 		return 0, 0, fmt.Errorf("error creating request: %w", err)
 	}
-
-	for _, name := range RequiredHeaders {
-		req.Header.Set(name, c.Headers.Get(name))
-	}
-
-	randomHeaders := getRandomHeaders(c.Headers)
 
 	req.Header = randomHeaders
 
@@ -204,6 +212,8 @@ func (c *Client) RunThread(ctx context.Context, threadID int, wg *sync.WaitGroup
 		"thread_id": threadID,
 	})
 
+	randomHeaders := getRandomHeaders(c.Headers, threadID)
+
 	for i := 1; i <= c.Config.MessagesCount; i++ {
 		select {
 		case <-ctx.Done():
@@ -212,7 +222,7 @@ func (c *Client) RunThread(ctx context.Context, threadID int, wg *sync.WaitGroup
 			})
 			return
 		default:
-			_, _, err := c.SendMessage(ctx, httpClient, threadID, i)
+			_, _, err := c.SendMessage(ctx, httpClient, threadID, i, randomHeaders)
 			if err != nil {
 				c.Logger.Error("Error in thread", Fields{
 					"thread_id": threadID,

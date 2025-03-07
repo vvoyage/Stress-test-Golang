@@ -29,6 +29,10 @@ var RequiredHeaders = [...]string{
 	"x-esb-key",
 }
 
+var DataTypes = [...]string{"json", "xml", "html", "form-data", "binary"}
+
+var EsbKeys = [...]string{"NiuqR6nZ8ZlSpz3d5rIyj1NqeTM", "kJ8gFC0sBKuasutvyg2yLVUhyz7", "o5usHtlb5KoK7KUjqSscynmcHWE"}
+
 const (
 	Info LogLevel = iota
 	Warn

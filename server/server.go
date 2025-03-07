@@ -7,9 +7,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	. "stress/common"
 	"sync"
 	"syscall"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 type Server struct {
@@ -32,15 +36,53 @@ func NewServer(port int, logFile string) (*Server, error) {
 	}, nil
 }
 
+func isValidHeader(header string, value []string) bool {
+	switch header {
+	case "x-esb-ver-id":
+		err := uuid.Validate(value[0])
+		return len(value) == 1 && err == nil
+	case "x-esb-ver-no":
+		_, err := time.Parse("20060102T150405", value[0])
+		return len(value) == 1 && err == nil
+	default:
+		return true
+	}
+}
+
+func isAuthenticated(value string) bool {
+	return slices.Contains(EsbKeys[:], value)
+}
+
 func (s *Server) HandleSend(w http.ResponseWriter, r *http.Request) {
 	s.RequestWG.Add(1)
 	defer s.RequestWG.Done()
 
 	for _, name := range RequiredHeaders {
-		if r.Header.Get(name) == "" {
+		header := r.Header.Get(name)
+		if header == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			s.Logger.Error("Missing required header", Fields{
 				"header": name,
+				"status": http.StatusBadRequest,
+			})
+			return
+		}
+	}
+
+	esbKey := r.Header.Get("x-esb-key")
+	if !isAuthenticated(esbKey) {
+		w.WriteHeader(http.StatusForbidden)
+		s.Logger.Error("Not authenticated", Fields{
+			"status": http.StatusForbidden,
+		})
+		return
+	}
+
+	for header, value := range r.Header {
+		if !isValidHeader(header, value) {
+			w.WriteHeader(http.StatusBadRequest)
+			s.Logger.Error("Not valid header", Fields{
+				"header": header,
 				"status": http.StatusBadRequest,
 			})
 			return
