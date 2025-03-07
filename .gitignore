@@ -21,3 +21,6 @@
 go.work
 
 .idea/
+
+# Логи
+*.log
