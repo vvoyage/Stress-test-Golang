@@ -36,16 +36,16 @@ func NewServer(port int, logFile string) (*Server, error) {
 	}, nil
 }
 
-func IsValidHeader(headerName string, header string) bool {
-	switch headerName {
+func isValidHeader(header string, value []string) bool {
+	switch header {
 	case "x-esb-key":
-		return slices.Contains(EsbKeys[:], header)
+		return len(value) == 1 && slices.Contains(EsbKeys[:], value[0])
 	case "x-esb-ver-id":
-		err := uuid.Validate(header)
-		return err == nil
+		err := uuid.Validate(value[0])
+		return len(value) == 1 && err == nil
 	case "x-esb-ver-no":
-		_, err := time.Parse("20060102T150405", header)
-		return err == nil
+		_, err := time.Parse("20060102T150405", value[0])
+		return len(value) == 1 && err == nil
 	default:
 		return true
 	}
@@ -64,10 +64,14 @@ func (s *Server) HandleSend(w http.ResponseWriter, r *http.Request) {
 				"status": http.StatusBadRequest,
 			})
 			return
-		} else if !IsValidHeader(name, header) {
-			w.WriteHeader(http.StatusBadRequest)
+		}
+	}
+
+	for header, value := range r.Header {
+		if !isValidHeader(header, value) {
+			w.WriteHeader(http.StatusForbidden)
 			s.Logger.Error("Not valid header", Fields{
-				"header": name,
+				"header": header,
 				"status": http.StatusForbidden,
 			})
 			return
