@@ -138,23 +138,6 @@ func isAuthenticated(value string) bool {
 	return slices.Contains(EsbKeys[:], value)
 }
 
-func isValidHeader(header string, value []string) bool {
-	switch header {
-	case "x-esb-ver-id":
-		err := uuid.Validate(value[0])
-		return len(value) == 1 && err == nil
-	case "x-esb-ver-no":
-		_, err := time.Parse("20060102T150405", value[0])
-		return len(value) == 1 && err == nil
-	default:
-		return true
-	}
-}
-
-func isAuthenticated(value string) bool {
-	return slices.Contains(EsbKeys[:], value)
-}
-
 func (s *Server) HandleSend(w http.ResponseWriter, r *http.Request) {
 	s.RequestWG.Add(1)
 	defer s.RequestWG.Done()
@@ -187,26 +170,6 @@ func (s *Server) HandleSend(w http.ResponseWriter, r *http.Request) {
 				Str("header", header).
 				Int("status", http.StatusBadRequest).
 				Msg("Not valid header")
-			return
-		}
-	}
-
-	esbKey := r.Header.Get("x-esb-key")
-	if !isAuthenticated(esbKey) {
-		w.WriteHeader(http.StatusForbidden)
-		s.Logger.Error("Not authenticated", Fields{
-			"status": http.StatusForbidden,
-		})
-		return
-	}
-
-	for header, value := range r.Header {
-		if !isValidHeader(header, value) {
-			w.WriteHeader(http.StatusBadRequest)
-			s.Logger.Error("Not valid header", Fields{
-				"header": header,
-				"status": http.StatusBadRequest,
-			})
 			return
 		}
 	}
