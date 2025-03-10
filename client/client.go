@@ -125,7 +125,7 @@ var letters = [62]byte{'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l
 	'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
 	'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'}
 
-func randomPayload(size int) string { // Генерация случайной нагрузки
+func randomPayload(size int) string {
 	payload := make([]byte, size)
 	for i := range payload {
 		payload[i] = letters[rand.Intn(len(letters))]
@@ -135,7 +135,7 @@ func randomPayload(size int) string { // Генерация случайной �
 
 func (c *Client) SendMessage(ctx context.Context, httpClient *http.Client, threadID int, messageNumber int) (time.Duration, int, error) {
 	messageID := strconv.Itoa(threadID) + "-" + strconv.Itoa(messageNumber)
-	size := rand.Intn(c.Config.MaxPayload-c.Config.MinPayload+1) + c.Config.MinPayload // Генерация случайного размера нагрузки
+	size := rand.Intn(c.Config.MaxPayload-c.Config.MinPayload+1) + c.Config.MinPayload
 	message := &Message{
 		ID:        messageID,
 		Payload:   randomPayload(size),
@@ -161,12 +161,12 @@ func (c *Client) SendMessage(ctx context.Context, httpClient *http.Client, threa
 
 	req.Header = randomHeaders
 
-	c.Logger.Info("Sending message", Fields{
-		"thread_id":       threadID,
-		"message_id":      messageID,
-		"payload_size":    size,
-		"selectedHeaders": randomHeaders,
-	})
+	c.Logger.Info().
+		Int("thread_id", threadID).
+		Str("message_id", messageID).
+		Int("payload_size", size).
+		Interface("selectedHeaders", randomHeaders).
+		Msg("Sending message")
 
 	startTime := time.Now()
 	resp, err := httpClient.Do(req)
@@ -181,12 +181,12 @@ func (c *Client) SendMessage(ctx context.Context, httpClient *http.Client, threa
 	success := resp.StatusCode == 200
 	c.Stats.RecordRequest(success, duration)
 
-	c.Logger.Info("Message sent", Fields{
-		"thread_id":   threadID,
-		"message_id":  messageID,
-		"duration_ms": duration.Milliseconds(),
-		"status":      resp.StatusCode,
-	})
+	c.Logger.Info().
+		Int("thread_id", threadID).
+		Str("message_id", messageID).
+		Dur("duration", duration).
+		Int("status", resp.StatusCode).
+		Msg("Message sent")
 
 	return duration, resp.StatusCode, nil
 }
@@ -200,41 +200,41 @@ func (c *Client) RunThread(ctx context.Context, threadID int, wg *sync.WaitGroup
 	}
 	defer httpClient.CloseIdleConnections()
 
-	c.Logger.Info("Thread started", Fields{
-		"thread_id": threadID,
-	})
+	c.Logger.Info().
+		Int("thread_id", threadID).
+		Msg("Starting thread")
 
 	for i := 1; i <= c.Config.MessagesCount; i++ {
 		select {
 		case <-ctx.Done():
-			c.Logger.Warn("Thread interrupted", Fields{
-				"thread_id": threadID,
-			})
+			c.Logger.Warn().
+				Int("thread_id", threadID).
+				Msg("Thread interrupted")
 			return
 		default:
 			_, _, err := c.SendMessage(ctx, httpClient, threadID, i)
 			if err != nil {
-				c.Logger.Error("Error in thread", Fields{
-					"thread_id": threadID,
-					"error":     err.Error(),
-				})
+				c.Logger.Error().
+					Int("thread_id", threadID).
+					Err(err).
+					Msg("Error in thread")
 			}
 		}
 	}
 
-	c.Logger.Info("Thread completed", Fields{
-		"thread_id": threadID,
-	})
+	c.Logger.Info().
+		Int("thread_id", threadID).
+		Msg("Thread completed")
 }
 
 func (c *Client) Run() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	c.Logger.Info("Starting client", Fields{
-		"threads":             c.Config.Threads,
-		"messages_per_thread": c.Config.MessagesCount,
-	})
+	c.Logger.Info().
+		Int("threads", c.Config.Threads).
+		Int("messages_per_thread", c.Config.MessagesCount).
+		Msg("Starting client")
 
 	var wg sync.WaitGroup
 	wg.Add(c.Config.Threads)
@@ -252,18 +252,15 @@ func (c *Client) Run() {
 
 	stats := c.Stats.GetSummary()
 
-	c.Logger.Info("Client completed", Fields{
-		"total_messages":      totalMessages,
-		"duration":            duration.String(),
-		"messages_per_second": float64(totalMessages) / duration.Seconds(),
-	})
+	c.Logger.Info().
+		Int("total_messages", totalMessages).
+		Dur("duration", duration).
+		Float64("messages_per_second", float64(totalMessages)/duration.Seconds()).
+		Msg("Client completed")
 
-	c.Logger.Info("Response Statistics", Fields{
-		"success_rate":      stats["SuccessRate"],
-		"avg_response_time": stats["AverageDuration"],
-		"min_response_time": stats["MinDuration"],
-		"max_response_time": stats["MaxDuration"],
-	})
+	c.Logger.Info().
+		Fields(stats).
+		Msg("Response Statistics")
 
 	fmt.Printf("\n--- Response Statistics ---\n")
 	fmt.Printf("Total Requests:      %d\n", stats["TotalRequests"])

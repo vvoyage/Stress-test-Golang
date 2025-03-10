@@ -20,67 +20,86 @@ type Server struct {
 	RequestWG sync.WaitGroup
 	Stats     *ServerStats
 	done      chan struct{}
+	mutex     sync.Mutex
 }
 
 type ServerStats struct {
-	mutex         sync.Mutex
 	TotalRequests int
-	Status200     int
-	Status400     int
+	StatusCodes   map[int]int
 	TotalBytes    int64
 	TotalDuration time.Duration
 	MinDuration   time.Duration
 	MaxDuration   time.Duration
+	AvgDuration   time.Duration
 }
 
-func (s *ServerStats) RecordRequest(status int, duration time.Duration, bytes int64) {
+type statusRecorder struct {
+	http.ResponseWriter
+	statusCode int
+	size       int64
+}
+
+func (r *statusRecorder) WriteHeader(statusCode int) {
+	r.statusCode = statusCode
+	r.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (r *statusRecorder) Write(b []byte) (int, error) {
+	size, err := r.ResponseWriter.Write(b)
+	r.size += int64(size)
+	return size, err
+}
+
+func (s *Server) RequestStatsMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		s.RequestWG.Add(1)
+		defer s.RequestWG.Done()
+
+		startTime := time.Now()
+
+		recorder := &statusRecorder{
+			ResponseWriter: w,
+			statusCode:     http.StatusOK,
+		}
+
+		next(recorder, r)
+
+		s.RecordRequest(recorder.statusCode, time.Since(startTime), r.ContentLength+recorder.size)
+	}
+}
+
+func (s *Server) RecordRequest(status int, duration time.Duration, bytes int64) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	s.TotalRequests++
-	s.TotalDuration += duration
-	s.TotalBytes += bytes
+	s.Stats.TotalRequests++
+	s.Stats.TotalDuration += duration
+	s.Stats.TotalBytes += bytes
+	s.Stats.StatusCodes[status]++
 
-	if duration < s.MinDuration || s.MinDuration == 0 {
-		s.MinDuration = duration
+	if duration < s.Stats.MinDuration || s.Stats.MinDuration == 0 {
+		s.Stats.MinDuration = duration
 	}
-	if duration > s.MaxDuration {
-		s.MaxDuration = duration
-	}
-
-	switch status {
-	case http.StatusOK:
-		s.Status200++
-	case http.StatusBadRequest:
-		s.Status400++
+	if duration > s.Stats.MaxDuration {
+		s.Stats.MaxDuration = duration
 	}
 }
 
-func (s *ServerStats) GetAndResetStats() (int, int, int, time.Duration, time.Duration, time.Duration, int64) {
+func (s *Server) GetAndResetStats() ServerStats {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	totalRequests := s.TotalRequests
-	status200 := s.Status200
-	status400 := s.Status400
-	avgDuration := time.Duration(0)
-	if s.TotalRequests > 0 {
-		avgDuration = time.Duration(int64(s.TotalDuration) / int64(s.TotalRequests))
+	if s.Stats.TotalRequests > 0 {
+		s.Stats.AvgDuration = time.Duration(int64(s.Stats.TotalDuration) / int64(s.Stats.TotalRequests))
 	}
-	minDuration := s.MinDuration
-	maxDuration := s.MaxDuration
-	totalBytes := s.TotalBytes
 
-	// Сброс статистики
-	s.TotalRequests = 0
-	s.Status200 = 0
-	s.Status400 = 0
-	s.TotalDuration = 0
-	s.MinDuration = 0
-	s.MaxDuration = 0
-	s.TotalBytes = 0
+	snapshot := *s.Stats
 
-	return totalRequests, status200, status400, avgDuration, minDuration, maxDuration, totalBytes
+	*s.Stats = ServerStats{
+		StatusCodes: make(map[int]int),
+	}
+
+	return snapshot
 }
 
 func (s *Server) startStatsLogger(interval time.Duration) {
@@ -90,51 +109,27 @@ func (s *Server) startStatsLogger(interval time.Duration) {
 	for {
 		select {
 		case <-ticker.C:
-			totalRequests, status200, status400, avgDuration, minDuration, maxDuration, totalBytes := s.Stats.GetAndResetStats()
-			s.Logger.Info("Request statistics", Fields{
-				"total_requests": totalRequests,
-				"status_200":     status200,
-				"status_400":     status400,
-				"avg_duration":   avgDuration,
-				"min_duration":   minDuration,
-				"max_duration":   maxDuration,
-				"total_bytes":    totalBytes,
-			})
+			stats := s.GetAndResetStats()
+			s.Logger.Info().
+				Interface("Statistics", stats).
+				Msg("Request statistics")
 		case <-s.done:
 			return
 		}
 	}
 }
 
-func NewServer(port int, logFile string) (*Server, error) {
-	logger, err := NewLogger(logFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create logger: %w", err)
-	}
-
-	return &Server{
-		Port:    port,
-		Logger:  logger,
-		LogFile: logFile,
-		Stats:   &ServerStats{},
-		done:    make(chan struct{}),
-	}, nil
-}
-
 func (s *Server) HandleSend(w http.ResponseWriter, r *http.Request) {
 	s.RequestWG.Add(1)
 	defer s.RequestWG.Done()
 
-	startTime := time.Now()
-
 	for _, name := range RequiredHeaders {
 		if r.Header.Get(name) == "" {
 			w.WriteHeader(http.StatusBadRequest)
-			s.Logger.Error("Missing required header", Fields{
-				"header": name,
-				"status": http.StatusBadRequest,
-			})
-			s.Stats.RecordRequest(http.StatusBadRequest, time.Since(startTime), r.ContentLength)
+			s.Logger.Error().
+				Str("header", name).
+				Int("status", http.StatusBadRequest).
+				Msg("Missing required header")
 			return
 		}
 	}
@@ -142,46 +137,43 @@ func (s *Server) HandleSend(w http.ResponseWriter, r *http.Request) {
 	_, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-
-		s.Logger.Error("Error reading request body", Fields{
-			"error":  err.Error(),
-			"status": http.StatusInternalServerError,
-		})
-		s.Stats.RecordRequest(http.StatusInternalServerError, time.Since(startTime), r.ContentLength)
+		s.Logger.Error().
+			Err(err).
+			Int("status", http.StatusInternalServerError).
+			Msg("Error reading request body")
 		return
 	}
 	defer r.Body.Close()
 
-	s.Logger.Info("Request processed successfully", Fields{
-		"status":          http.StatusOK,
-		"missing_headers": &r.Header,
-		"message_size":    r.ContentLength,
-	})
+	s.Logger.Info().
+		Int("status", http.StatusOK).
+		Interface("headers", r.Header).
+		Int64("message_size", r.ContentLength).
+		Msg("Request processed successfully")
 
 	w.WriteHeader(http.StatusOK)
-	s.Stats.RecordRequest(http.StatusOK, time.Since(startTime), r.ContentLength)
 }
 
 func (s *Server) Run() error {
-	http.HandleFunc("/send/", s.HandleSend)
+	http.HandleFunc("/send/", s.RequestStatsMiddleware(s.HandleSend))
 
-	s.Logger.Info("Starting server", Fields{
-		"port": s.Port,
-	})
+	s.Logger.Info().
+		Int("port", s.Port).
+		Msg("Starting server")
 
-	go s.startStatsLogger(5 * time.Millisecond) // Интервал можно настроить
+	go s.startStatsLogger(5 * time.Second)
 
 	return http.ListenAndServe(fmt.Sprintf(":%d", s.Port), nil)
 }
 
 func (s *Server) Shutdown() {
-	s.Logger.Info("Server shutting down. Waiting for active requests to complete...", nil)
+	s.Logger.Info().Msg("Server shutting down. Waiting for active requests to complete...")
 
 	s.RequestWG.Wait()
 
 	close(s.done)
 
-	s.Logger.Info("Server shutdown complete", nil)
+	s.Logger.Info().Msg("Server shutdown complete")
 
 	if err := s.Logger.Close(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error closing log file: %v\n", err)
@@ -196,11 +188,28 @@ func setupSignalHandler(server *Server) {
 
 	go func() {
 		sig := <-signalChan
-		server.Logger.Info("Received shutdown signal", Fields{
-			"signal": sig.String(),
-		})
+		server.Logger.Info().
+			Str("signal", sig.String()).
+			Msg("Received shutdown signal")
 		server.Shutdown()
 	}()
+}
+
+func NewServer(port int, logFile string) (*Server, error) {
+	logger, err := NewLogger(logFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create logger: %w", err)
+	}
+
+	return &Server{
+		Port:    port,
+		Logger:  logger,
+		LogFile: logFile,
+		Stats: &ServerStats{
+			StatusCodes: make(map[int]int),
+		},
+		done: make(chan struct{}),
+	}, nil
 }
 
 func main() {
@@ -218,9 +227,9 @@ func main() {
 
 	err = server.Run()
 	if err != nil {
-		server.Logger.Error("Server error", Fields{
-			"error": err.Error(),
-		})
+		server.Logger.Error().
+			Err(err).
+			Msg("Error starting server")
 		server.Shutdown()
 	}
 }
