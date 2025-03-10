@@ -214,6 +214,8 @@ func (c *Client) RunThread(ctx context.Context, threadID int, wg *sync.WaitGroup
 
 	randomHeaders := getRandomHeaders(c.Headers, threadID)
 
+	randomHeaders := getRandomHeaders(c.Headers, threadID)
+
 	for i := 1; i <= c.Config.MessagesCount; i++ {
 		select {
 		case <-ctx.Done():
