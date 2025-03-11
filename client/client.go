@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"os"
@@ -116,7 +117,7 @@ func getRandomHeaders(baseHeaders *http.Header, threadID int) http.Header {
 		value := ""
 		switch header {
 		case "x-esb-src":
-			value = fmt.Sprint(threadID)
+			value = "sys:erp" //fmt.Sprint(threadID)
 		case "x-esb-data-type":
 			value = DataTypes[rand.Intn(len(DataTypes))]
 		case "x-esb-ver-id":
@@ -179,22 +180,23 @@ func (c *Client) SendMessage(ctx context.Context, httpClient *http.Client, threa
 	startTime := time.Now()
 	resp, err := httpClient.Do(req)
 	duration := time.Since(startTime)
-
 	if err != nil {
 		c.Stats.RecordRequest(false, duration)
 		return duration, 0, err
 	}
+
 	defer resp.Body.Close()
 
 	success := resp.StatusCode == 200
 	c.Stats.RecordRequest(success, duration)
+	b, err := io.ReadAll(resp.Body)
 
 	c.Logger.Info().
 		Int("thread_id", threadID).
 		Str("message_id", messageID).
 		Dur("duration", duration).
 		Int("status", resp.StatusCode).
-		Msg("Message sent")
+		Msg(string(b))
 
 	return duration, resp.StatusCode, nil
 }

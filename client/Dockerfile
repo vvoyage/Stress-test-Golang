@@ -15,4 +15,4 @@ WORKDIR /app
 
 COPY --from=build /app/client .
 
-CMD ["./client", "-host", "server", "-port", "8080", "-log", "/app/logs/client.json"]
+CMD ["./client", "-log", "/app/logs/client.json"]
