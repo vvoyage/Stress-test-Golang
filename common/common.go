@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"go.elastic.co/ecszerolog"
 	"os"
 	"time"
 
@@ -40,7 +41,7 @@ func NewLogger(logFilePath string) (*Logger, error) {
 	}
 
 	logger := &Logger{
-		Logger: zerolog.New(file).With().Timestamp().Caller().Logger(),
+		Logger: ecszerolog.New(file).With().Caller().Logger(),
 		file:   file,
 	}
 

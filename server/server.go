@@ -254,7 +254,7 @@ func NewServer(port int, logFile string) (*Server, error) {
 
 func main() {
 	port := flag.Int("port", 8080, "Server port")
-	logFile := flag.String("log", "server.log", "Path to log file")
+	logFile := flag.String("log", "server.json", "Path to log file")
 	flag.Parse()
 
 	server, err := NewServer(*port, *logFile)

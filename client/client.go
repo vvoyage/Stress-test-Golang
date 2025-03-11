@@ -76,7 +76,7 @@ func (s *Statistics) GetSummary() Fields {
 
 	successRate := 0.0
 	if s.TotalRequests > 0 {
-		successRate = float64(s.SuccessfulRequests) / float64(s.TotalRequests*100)
+		successRate = float64(s.SuccessfulRequests) / float64(s.TotalRequests) * 100
 	}
 
 	avgDuration := time.Duration(0)
@@ -290,11 +290,11 @@ func (c *Client) Run() {
 func main() {
 	host := flag.String("host", os.Getenv("SERVICE_HOST"), "Service host")
 	port := flag.String("port", os.Getenv("SERVICE_PORT"), "Service port")
-	threads := flag.Int("threads", 12, "Number of threads")
-	messages := flag.Int("messages", 30, "Number of messages per thread")
+	threads := flag.Int("threads", 6, "Number of threads")
+	messages := flag.Int("messages", 100, "Number of messages per thread")
 	minPayload := flag.Int("min-payload", 10, "Minimum payload size in bytes")
 	maxPayload := flag.Int("max-payload", 1024, "Maximum payload size in bytes")
-	logFile := flag.String("log", "client.log", "Path to log file")
+	logFile := flag.String("log", "client.json", "Path to log file")
 	esbSrc := flag.String("esb-src", "client-app", "ESB source")
 	esbDataType := flag.String("esb-data-type", "json", "ESB data type")
 	esbVerID := flag.String("esb-ver-id", "v1", "ESB version ID")
