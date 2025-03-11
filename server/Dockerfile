@@ -9,13 +9,11 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o /app/server ./server/server.go
 
-FROM alpine:latest
+FROM scratch
 
 WORKDIR /app
 
 COPY --from=build /app/server .
-
-RUN mkdir -p /app/logs
 
 EXPOSE 8080
 
