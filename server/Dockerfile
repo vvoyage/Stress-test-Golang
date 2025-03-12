@@ -15,6 +15,4 @@ WORKDIR /app
 
 COPY --from=build /app/server .
 
-EXPOSE 8080
-
 CMD ["./server", "-port", "8080", "-log", "/app/logs/server.json"]

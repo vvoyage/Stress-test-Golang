@@ -66,7 +66,7 @@
       - SERVICE_PORT=8800
 
   postgres:
-    image: postgres:15
+    image: postgres:17
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -79,11 +79,10 @@
     networks:
       - elastic
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      test: pg_isready -U postgres
       interval: 5s
       timeout: 5s
       retries: 5
-
 
   adapter:
     build:
