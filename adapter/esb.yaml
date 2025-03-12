@@ -1,0 +1,8 @@
+﻿server:
+ host: "postgres"
+ database: esb_database
+ user: postgres
+ password: postgres
+dispatch: false
+
+

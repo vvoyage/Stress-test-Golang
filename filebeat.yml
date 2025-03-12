@@ -1,0 +1,19 @@
+﻿filebeat.inputs:
+  - type: filestream
+    enabled: true
+    paths:
+      - /logs/*.json
+    parsers:
+      - ndjson:
+        keys_under_root: true
+        add_error_key: true
+        expand_keys: true
+
+output.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+
+setup.kibana:
+  host: "kibana:5601"
+
+setup.dashboards.enabled: true
+setup.ilm.enabled: false

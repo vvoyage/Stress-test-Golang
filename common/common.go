@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"go.elastic.co/ecszerolog"
 	"os"
 	"time"
 
@@ -20,7 +21,7 @@ var RequiredHeaders = [...]string{
 
 var DataTypes = [...]string{"json", "xml", "html", "form-data", "binary"}
 
-var EsbKeys = [...]string{"NiuqR6nZ8ZlSpz3d5rIyj1NqeTM", "kJ8gFC0sBKuasutvyg2yLVUhyz7", "o5usHtlb5KoK7KUjqSscynmcHWE"}
+var EsbKeys = [...]string{"AD 57 9C A9 80 0E 4F 56 C6 6A C2 47 7E 0C 23 47"}
 
 type Message struct {
 	ID        string    `json:"id"`
@@ -40,7 +41,7 @@ func NewLogger(logFilePath string) (*Logger, error) {
 	}
 
 	logger := &Logger{
-		Logger: zerolog.New(file).With().Timestamp().Caller().Logger(),
+		Logger: ecszerolog.New(file).With().Caller().Logger(),
 		file:   file,
 	}
 

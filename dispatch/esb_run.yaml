@@ -1,0 +1,16 @@
+﻿# ITOGO test server configuration
+#database section
+server:
+ host: "postgres"
+ database: esb_database
+ user: postgres
+ password: postgres
+#service settings
+# use default port 
+#port: 8900  
+logpath: /var/log/esb
+dispatch: true
+resend: true
+deliver:
+#  sys:erp
+#  sys:bp

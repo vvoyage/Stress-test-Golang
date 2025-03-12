@@ -1,0 +1,121 @@
+﻿services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.3
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    networks:
+      - elastic
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.17.3
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    networks:
+      - elastic
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:5601/api/status" ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.17.3
+    volumes:
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ./logs:/logs:ro
+    depends_on:
+      kibana:
+       condition: service_healthy
+    networks:
+      - elastic
+    command: filebeat -e --strict.perms=false
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - elastic
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    depends_on:
+      - server
+      - adapter
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - elastic
+    environment:
+      - SERVICE_HOST=adapter
+      - SERVICE_PORT=8800
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: esb_database
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres:/docker-entrypoint-initdb.d
+    networks:
+      - elastic
+    healthcheck:
+      test: pg_isready -U postgres
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  adapter:
+    build:
+      context: .
+      dockerfile: adapter/Dockerfile
+    ports:
+      - "8800:8800"
+    volumes:
+      - ./adapter:/adapter
+    networks:
+      - elastic
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  dispatch:
+    build:
+      context: .
+      dockerfile: dispatch/Dockerfile
+    ports:
+      - "8900:8900"
+    volumes:
+      - ./dispatch:/dispatch
+    networks:
+      - elastic
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+networks:
+  elastic:
+    driver: bridge
+
+volumes:
+  es_data:
+  postgres_data:
