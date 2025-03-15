@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"slices"
+	"strconv"
 	. "stress/common"
 	"sync"
 	"syscall"
@@ -17,13 +18,14 @@ import (
 )
 
 type Server struct {
-	Port      int
-	Logger    *Logger
-	LogFile   string
-	RequestWG sync.WaitGroup
-	Stats     *ServerStats
-	done      chan struct{}
-	mutex     sync.Mutex
+	Port                 int
+	Logger               *Logger
+	LogFile              string
+	RequestWG            sync.WaitGroup
+	Stats                *ServerStats
+	done                 chan struct{}
+	mutex                sync.Mutex
+	authenticateRequests bool
 }
 
 type ServerStats struct {
@@ -155,7 +157,7 @@ func (s *Server) HandleSend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	esbKey := r.Header.Get("x-esb-key")
-	if !isAuthenticated(esbKey) {
+	if s.authenticateRequests && !isAuthenticated(esbKey) {
 		w.WriteHeader(http.StatusForbidden)
 		s.Logger.Error().
 			Int("status", http.StatusForbidden).
@@ -235,7 +237,20 @@ func setupSignalHandler(server *Server) {
 	}()
 }
 
-func NewServer(port int, logFile string) (*Server, error) {
+func getAuthEnvVar() bool {
+	env := os.Getenv("AUTHENTICATE_REQUESTS")
+	if env == "" {
+		return false
+	}
+	authDefaultValue, err := strconv.ParseBool(env)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parse environment variable: %v\n", err)
+		os.Exit(1)
+	}
+	return authDefaultValue
+}
+
+func NewServer(port int, logFile string, authenticate bool) (*Server, error) {
 	logger, err := NewLogger(logFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create logger: %w", err)
@@ -248,16 +263,18 @@ func NewServer(port int, logFile string) (*Server, error) {
 		Stats: &ServerStats{
 			StatusCodes: make(map[int]int),
 		},
-		done: make(chan struct{}),
+		done:                 make(chan struct{}),
+		authenticateRequests: authenticate,
 	}, nil
 }
 
 func main() {
 	port := flag.Int("port", 8080, "Server port")
 	logFile := flag.String("log", "server.json", "Path to log file")
+	authenticate := flag.Bool("auth", getAuthEnvVar(), "Authenticate HTTP requests")
 	flag.Parse()
 
-	server, err := NewServer(*port, *logFile)
+	server, err := NewServer(*port, *logFile, *authenticate)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating server: %v\n", err)
 		os.Exit(1)
