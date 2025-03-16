@@ -146,6 +146,9 @@ func (s *Server) HandleSend(w http.ResponseWriter, r *http.Request) {
 
 	for _, name := range RequiredHeaders {
 		header := r.Header.Get(name)
+		if name == "x-esb-key" && !s.authenticateRequests {
+			continue
+		}
 		if header == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			s.Logger.Error().
