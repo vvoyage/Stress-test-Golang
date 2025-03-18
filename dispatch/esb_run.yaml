@@ -12,5 +12,5 @@ logpath: /var/log/esb
 dispatch: true
 resend: true
 deliver:
+  sys:bp
 #  sys:erp
-#  sys:bp

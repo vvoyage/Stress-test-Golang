@@ -1,6 +1,6 @@
 ﻿services:
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.3
+    image: elasticsearch:8.17.3
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
@@ -12,7 +12,7 @@
       - elastic
 
   kibana:
-    image: docker.elastic.co/kibana/kibana:8.17.3
+    image: kibana:8.17.3
     ports:
       - "5601:5601"
     depends_on:
@@ -28,7 +28,7 @@
       retries: 30
 
   filebeat:
-    image: docker.elastic.co/beats/filebeat:8.17.3
+    image: elastic/filebeat:8.17.3
     volumes:
       - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
       - ./logs:/logs:ro
@@ -49,6 +49,8 @@
       - ./logs:/app/logs
     networks:
       - elastic
+    environment:
+      - AUTHENTICATE_REQUESTS=false
 
   client:
     build:
@@ -57,6 +59,7 @@
     depends_on:
       - server
       - adapter
+      - dispatch
     volumes:
       - ./logs:/app/logs
     networks:

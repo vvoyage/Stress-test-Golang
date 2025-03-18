@@ -41,18 +41,11 @@ type ServerStats struct {
 type statusRecorder struct {
 	http.ResponseWriter
 	statusCode int
-	size       int64
 }
 
 func (r *statusRecorder) WriteHeader(statusCode int) {
 	r.statusCode = statusCode
 	r.ResponseWriter.WriteHeader(statusCode)
-}
-
-func (r *statusRecorder) Write(b []byte) (int, error) {
-	size, err := r.ResponseWriter.Write(b)
-	r.size += int64(size)
-	return size, err
 }
 
 func (s *Server) RequestStatsMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -69,7 +62,7 @@ func (s *Server) RequestStatsMiddleware(next http.HandlerFunc) http.HandlerFunc 
 
 		next(recorder, r)
 
-		s.RecordRequest(recorder.statusCode, time.Since(startTime), r.ContentLength+recorder.size)
+		s.RecordRequest(recorder.statusCode, time.Since(startTime), r.ContentLength)
 	}
 }
 
@@ -145,10 +138,13 @@ func (s *Server) HandleSend(w http.ResponseWriter, r *http.Request) {
 	defer s.RequestWG.Done()
 
 	for _, name := range RequiredHeaders {
-		header := r.Header.Get(name)
+		if name == "x-esb-ver-id" || name == "x-esb-ver-no" {
+			continue
+		}
 		if name == "x-esb-key" && !s.authenticateRequests {
 			continue
 		}
+		header := r.Header.Get(name)
 		if header == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			s.Logger.Error().
@@ -201,6 +197,7 @@ func (s *Server) HandleSend(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) Run() error {
 	http.HandleFunc("/send/", s.RequestStatsMiddleware(s.HandleSend))
+	http.HandleFunc("/msg", s.RequestStatsMiddleware(s.HandleSend))
 
 	s.Logger.Info().
 		Int("port", s.Port).

@@ -19,7 +19,7 @@ var RequiredHeaders = [...]string{
 	"x-esb-key",
 }
 
-var DataTypes = [...]string{"json", "xml", "html", "form-data", "binary"}
+var DataTypes = [...]string{"ref:sku"}
 
 var EsbKeys = [...]string{"AD 57 9C A9 80 0E 4F 56 C6 6A C2 47 7E 0C 23 47"}
 

@@ -2,7 +2,18 @@
   - type: filestream
     enabled: true
     paths:
-      - /logs/*.json
+      - /logs/client.json
+    tags: ["client"]
+    parsers:
+      - ndjson:
+        keys_under_root: true
+        add_error_key: true
+        expand_keys: true
+  - type: filestream
+    enabled: true
+    paths:
+      - /logs/server.json
+    tags: ["server"]
     parsers:
       - ndjson:
         keys_under_root: true
