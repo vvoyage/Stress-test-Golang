@@ -19,13 +19,15 @@ import (
 )
 
 type Config struct {
-	Host          string
-	Port          string
-	Threads       int
-	MessagesCount int
-	LogFile       string
-	MinPayload    int
-	MaxPayload    int
+	Host                  string
+	Port                  string
+	Threads               int
+	MessagesCount         int
+	LogFile               string
+	MinPayload            int
+	MaxPayload            int
+	BrokenHeadersPercent  int
+	InvalidHeadersPercent int
 }
 
 type Client struct {
@@ -110,10 +112,14 @@ func NewClient(config *Config, headers *http.Header) (*Client, error) {
 	}, nil
 }
 
-func getRandomHeaders(baseHeaders *http.Header, threadID int) http.Header {
+func getRandomHeaders(baseHeaders *http.Header, threadID int, brokenHeadersPercent int, invalidHeadersPercent int) http.Header {
 	headers := http.Header{}
 
 	for _, header := range RequiredHeaders {
+		if rand.Intn(100) < brokenHeadersPercent {
+			continue
+		}
+
 		value := ""
 		switch header {
 		case "x-esb-src":
@@ -130,6 +136,11 @@ func getRandomHeaders(baseHeaders *http.Header, threadID int) http.Header {
 		default:
 			value = baseHeaders.Get(header)
 		}
+
+		if rand.Intn(100) < invalidHeadersPercent {
+			value = "invalid-value"
+		}
+
 		headers.Set(header, value)
 	}
 
@@ -169,6 +180,23 @@ func (c *Client) SendMessage(ctx context.Context, httpClient *http.Client, threa
 	}
 
 	req.Header = randomHeaders
+
+	if len(randomHeaders) < len(RequiredHeaders) {
+		c.Logger.Warn().
+			Int("thread_id", threadID).
+			Str("message_id", messageID).
+			Msg("Missing headers in request")
+	}
+
+	for header, value := range randomHeaders {
+		if value[0] == "invalid-value" {
+			c.Logger.Warn().
+				Int("thread_id", threadID).
+				Str("message_id", messageID).
+				Str("header", header).
+				Msg("Invalid header value in request")
+		}
+	}
 
 	c.Logger.Info().
 		Int("thread_id", threadID).
@@ -214,7 +242,7 @@ func (c *Client) RunThread(ctx context.Context, threadID int, wg *sync.WaitGroup
 		Int("thread_id", threadID).
 		Msg("Starting thread")
 
-	randomHeaders := getRandomHeaders(c.Headers, threadID)
+	randomHeaders := getRandomHeaders(c.Headers, threadID, c.Config.BrokenHeadersPercent, c.Config.InvalidHeadersPercent)
 
 	for i := 1; i <= c.Config.MessagesCount; i++ {
 		select {
@@ -302,6 +330,8 @@ func main() {
 	esbVerID := flag.String("esb-ver-id", "v1", "ESB version ID")
 	esbVerNo := flag.String("esb-ver-no", "1.0", "ESB version number")
 	esbKey := flag.String("esb-key", "default-key", "ESB key")
+	brokenHeadersPercent := flag.Int("broken-headers-percent", 10, "Percentage of requests with missing headers")
+	invalidHeadersPercent := flag.Int("invalid-headers-percent", 10, "Percentage of requests with invalid header values")
 	flag.Parse()
 
 	if *host == "" {
@@ -319,13 +349,15 @@ func main() {
 	headers.Set("x-esb-key", *esbKey)
 
 	config := &Config{
-		Host:          *host,
-		Port:          *port,
-		Threads:       *threads,
-		MessagesCount: *messages,
-		LogFile:       *logFile,
-		MinPayload:    *minPayload,
-		MaxPayload:    *maxPayload,
+		Host:                  *host,
+		Port:                  *port,
+		Threads:               *threads,
+		MessagesCount:         *messages,
+		LogFile:               *logFile,
+		MinPayload:            *minPayload,
+		MaxPayload:            *maxPayload,
+		BrokenHeadersPercent:  *brokenHeadersPercent,
+		InvalidHeadersPercent: *invalidHeadersPercent,
 	}
 
 	client, err := NewClient(config, &headers)
