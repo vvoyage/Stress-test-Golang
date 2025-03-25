@@ -320,13 +320,13 @@ func (c *Client) Run() {
 func main() {
 	host := flag.String("host", os.Getenv("SERVICE_HOST"), "Service host")
 	port := flag.String("port", os.Getenv("SERVICE_PORT"), "Service port")
-	threads := flag.Int("threads", 6, "Number of threads")
-	messages := flag.Int("messages", 100, "Number of messages per thread")
-	minPayload := flag.Int("min-payload", 10, "Minimum payload size in bytes")
-	maxPayload := flag.Int("max-payload", 1024, "Maximum payload size in bytes")
+	threads := flag.Int("threads", getEnvInt("THREADS", 6), "Number of threads")
+	messages := flag.Int("messages", getEnvInt("MESSAGES", 100), "Number of messages per thread")
+	minPayload := flag.Int("min-payload", getEnvInt("MIN_PAYLOAD", 10), "Minimum payload size in bytes")
+	maxPayload := flag.Int("max-payload", getEnvInt("MAX_PAYLOAD", 1024), "Maximum payload size in bytes")
 	logFile := flag.String("log", "client.json", "Path to log file")
-	brokenHeadersPercent := flag.Int("broken-headers-percent", 10, "Percentage of requests with missing headers")
-	invalidHeadersPercent := flag.Int("invalid-headers-percent", 10, "Percentage of requests with invalid header values")
+	brokenHeadersPercent := flag.Int("broken-headers-percent", getEnvInt("BROKEN_HEADERS_PERCENT", 10), "Percentage of requests with missing headers")
+	invalidHeadersPercent := flag.Int("invalid-headers-percent", getEnvInt("INVALID_HEADERS_PERCENT", 10), "Percentage of requests with invalid header values")
 	flag.Parse()
 
 	if *host == "" {
@@ -357,4 +357,13 @@ func main() {
 	}
 
 	client.Run()
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	if value, exists := os.LookupEnv(key); exists {
+		if intValue, err := strconv.Atoi(value); err == nil {
+			return intValue
+		}
+	}
+	return defaultValue
 }
