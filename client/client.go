@@ -325,11 +325,6 @@ func main() {
 	minPayload := flag.Int("min-payload", 10, "Minimum payload size in bytes")
 	maxPayload := flag.Int("max-payload", 1024, "Maximum payload size in bytes")
 	logFile := flag.String("log", "client.json", "Path to log file")
-	esbSrc := flag.String("esb-src", "client-app", "ESB source")
-	esbDataType := flag.String("esb-data-type", "json", "ESB data type")
-	esbVerID := flag.String("esb-ver-id", "v1", "ESB version ID")
-	esbVerNo := flag.String("esb-ver-no", "1.0", "ESB version number")
-	esbKey := flag.String("esb-key", "default-key", "ESB key")
 	brokenHeadersPercent := flag.Int("broken-headers-percent", 10, "Percentage of requests with missing headers")
 	invalidHeadersPercent := flag.Int("invalid-headers-percent", 10, "Percentage of requests with invalid header values")
 	flag.Parse()
@@ -342,11 +337,6 @@ func main() {
 	}
 
 	headers := http.Header{}
-	headers.Set("x-esb-src", *esbSrc)
-	headers.Set("x-esb-data-type", *esbDataType)
-	headers.Set("x-esb-ver-id", *esbVerID)
-	headers.Set("x-esb-ver-no", *esbVerNo)
-	headers.Set("x-esb-key", *esbKey)
 
 	config := &Config{
 		Host:                  *host,
