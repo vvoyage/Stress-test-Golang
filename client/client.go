@@ -327,6 +327,7 @@ func main() {
 	logFile := flag.String("log", "client.json", "Path to log file")
 	brokenHeadersPercent := flag.Int("broken-headers-percent", getEnvInt("BROKEN_HEADERS_PERCENT", 10), "Percentage of requests with missing headers")
 	invalidHeadersPercent := flag.Int("invalid-headers-percent", getEnvInt("INVALID_HEADERS_PERCENT", 10), "Percentage of requests with invalid header values")
+
 	flag.Parse()
 
 	if *host == "" {
