@@ -173,7 +173,7 @@ func (c *Client) SendMessage(ctx context.Context, httpClient *http.Client, threa
 		return 0, 0, fmt.Errorf("error marshaling message: %w", err)
 	}
 
-	url := fmt.Sprintf("http://%s:%s/send/", c.Config.Host, c.Config.Port)
+	url := fmt.Sprintf("http://%s:%s/msg", c.Config.Host, c.Config.Port)
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(payload))
 	if err != nil {
 		return 0, 0, fmt.Errorf("error creating request: %w", err)
