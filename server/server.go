@@ -101,6 +101,7 @@ type Server struct {
 	taskQueue chan *requestTask
 	//mutex                sync.Mutex
 	authenticateRequests bool
+	Resend               bool
 }
 
 //type ServerStats struct {
@@ -275,31 +276,41 @@ func (s *Server) HandleSend(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	reply := make(chan responseResult, 1)
-	task := &requestTask{
-		headers:   r.Header,
-		body:      body,
-		replyChan: reply,
+	if s.Resend {
+		reply := make(chan responseResult, 1)
+		task := &requestTask{
+			headers:   r.Header,
+			body:      body,
+			replyChan: reply,
+		}
+
+		s.taskQueue <- task
+		resp := <-reply
+
+		if resp.err != nil {
+			s.Logger.Error().Int("status", http.StatusInternalServerError).Msg(resp.err.Error())
+			http.Error(w, resp.err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		s.Logger.Info().
+			Int("status", resp.statusCode).
+			Interface("headers", r.Header).
+			Int64("message_size", r.ContentLength).
+			Str("body", string(resp.body)).
+			Msg("Resend message")
+
+		w.WriteHeader(resp.statusCode)
+		w.Write(resp.body)
+	} else {
+		w.WriteHeader(http.StatusOK)
+
+		s.Logger.Info().
+			Int("status", http.StatusOK).
+			Interface("headers", r.Header).
+			Int64("message_size", r.ContentLength).
+			Msg("Resend message")
 	}
-
-	s.taskQueue <- task
-	resp := <-reply
-
-	if resp.err != nil {
-		s.Logger.Error().Int("status", http.StatusInternalServerError).Msg(resp.err.Error())
-		http.Error(w, resp.err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	s.Logger.Info().
-		Int("status", resp.statusCode).
-		Interface("headers", r.Header).
-		Int64("message_size", r.ContentLength).
-		Str("body", string(resp.body)).
-		Msg("Get response body")
-
-	w.WriteHeader(resp.statusCode)
-	w.Write(resp.body)
 }
 
 func (s *Server) Run() error {
@@ -393,7 +404,7 @@ func (s *Server) workerLoop(sess *HttpSession) {
 		task.replyChan <- result
 	}
 }
-func NewServer(port int, logFile string, authenticate bool, numWorkers int) (*Server, error) {
+func NewServer(port int, logFile string, authenticate bool, resend bool, numWorkers int) (*Server, error) {
 	logger, err := NewLogger(logFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create logger: %w", err)
@@ -403,6 +414,7 @@ func NewServer(port int, logFile string, authenticate bool, numWorkers int) (*Se
 		Port:    port,
 		Logger:  logger,
 		LogFile: logFile,
+		Resend:  resend,
 		//Stats: &ServerStats{
 		//	StatusCodes: make(map[int]int),
 		//},
@@ -412,7 +424,7 @@ func NewServer(port int, logFile string, authenticate bool, numWorkers int) (*Se
 	}
 
 	for i := 0; i < numWorkers; i++ {
-		go s.workerLoop(NewSession(urlInfo, "esb", "esb", false))
+		go s.workerLoop(NewSession(urlInfo, "esb", "esb", s.Resend))
 	}
 
 	return s, nil
@@ -425,9 +437,10 @@ func main() {
 	port := flag.Int("port", 8080, "Server port")
 	logFile := flag.String("log", "server.json", "Path to log file")
 	authenticate := flag.Bool("auth", getAuthEnvVar(), "Authenticate HTTP requests")
+	resend := flag.Bool("resend", false, "Authenticate HTTP requests")
 	flag.Parse()
 
-	server, err := NewServer(*port, *logFile, *authenticate, 1)
+	server, err := NewServer(*port, *logFile, *authenticate, *resend, 1)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating server: %v\n", err)
 		os.Exit(1)
